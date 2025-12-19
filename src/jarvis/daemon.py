@@ -8,9 +8,23 @@ from __future__ import annotations
 import time
 import signal
 import threading
+import sys
 import sounddevice as sd
 from typing import Optional
 from faster_whisper import WhisperModel
+
+# Fix Windows console encoding for emoji support
+if sys.platform == 'win32':
+    try:
+        import os
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout.reconfigure(encoding='utf-8')
+        if sys.stderr.encoding != 'utf-8':
+            sys.stderr.reconfigure(encoding='utf-8')
+        # Also set console code page to UTF-8
+        os.system('chcp 65001 >nul 2>&1')
+    except (AttributeError, Exception):
+        pass
 
 from .config import load_settings
 from .memory.db import Database

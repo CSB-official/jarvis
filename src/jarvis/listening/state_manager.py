@@ -188,10 +188,8 @@ class StateManager:
                 
                 # Pretty output for non-debug mode
                 if not voice_debug:
-                    try:
-                        print(f"👂 Listening for follow-up ({int(self.hot_window_seconds)}s)...")
-                    except Exception:
-                        pass
+                    from jarvis.debug import safe_print
+                    safe_print(f"👂 Listening for follow-up ({int(self.hot_window_seconds)}s)...")
         
         # Start delayed activation in a separate thread
         activation_thread = threading.Thread(target=_delayed_activation, daemon=True)

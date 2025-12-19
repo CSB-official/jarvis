@@ -511,8 +511,9 @@ class VoiceListener(threading.Thread):
             return
         
         # Show ready message to user
+        from jarvis.debug import safe_print
         wake_word = getattr(self.cfg, "wake_word", "jarvis").lower()
-        print(f"🎙️  Listening for '{wake_word}' - say hello!", flush=True)
+        safe_print(f"🎙️  Listening for '{wake_word}' - say hello!", flush=True)
         
         # Main audio processing loop
         with stream:

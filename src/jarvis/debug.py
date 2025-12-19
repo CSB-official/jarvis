@@ -1,6 +1,7 @@
 """Debug logging utilities for Jarvis."""
 import sys
 import time
+import re
 from typing import Optional
 from .config import load_settings
 
@@ -20,6 +21,16 @@ def _is_debug_enabled() -> bool:
             _cached_voice_debug = False
         _last_check_time = now
     return bool(_cached_voice_debug)
+
+
+def safe_print(text: str, **kwargs) -> None:
+    """Print with fallback for Windows encoding issues."""
+    try:
+        print(text, **kwargs)
+    except UnicodeEncodeError:
+        # Fallback: remove non-ASCII characters and try again
+        ascii_text = re.sub(r'[^\x00-\x7F]+', '', text)
+        print(ascii_text, **kwargs)
 
 
 def debug_log(message: str, category: str = "debug") -> None:

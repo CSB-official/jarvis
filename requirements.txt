@@ -17,4 +17,4 @@ pytest==8.3.2
 mcp==1.13.1
 chatterbox-tts==0.1.2
 pygame>=2.1.0
-faiss-cpu==1.7.4
+faiss-cpu>=1.8.0

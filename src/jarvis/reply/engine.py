@@ -50,7 +50,8 @@ def run_reply_engine(db: "Database", cfg, tts: Optional["TextToSpeech"],
         redacted,
         timeout_sec=float(getattr(cfg, 'llm_profile_select_timeout_sec', 30.0))
     )
-    print(f"  🎭 Profile selected: {profile_name}", flush=True)
+    from jarvis.debug import safe_print
+    safe_print(f"  🎭 Profile selected: {profile_name}", flush=True)
 
     system_prompt = PROFILES.get(profile_name, PROFILES["developer"]).system_prompt
 
@@ -467,12 +468,9 @@ def run_reply_engine(db: "Database", cfg, tts: Optional["TextToSpeech"],
         safe_reply = reply.strip()
         if safe_reply:
             # Print reply with appropriate header
-            try:
-                if not getattr(cfg, "voice_debug", False):
-                    print(f"\n🤖 Jarvis ({profile_name})\n" + safe_reply + "\n", flush=True)
-                else:
-                    print(f"\n[jarvis coach:{profile_name}]\n" + safe_reply + "\n", flush=True)
-            except Exception:
+            if not getattr(cfg, "voice_debug", False):
+                safe_print(f"\n🤖 Jarvis ({profile_name})\n" + safe_reply + "\n", flush=True)
+            else:
                 print(f"\n[jarvis coach:{profile_name}]\n" + safe_reply + "\n", flush=True)
 
             # TTS output - callbacks handled by calling code

@@ -339,12 +339,13 @@ class ChatterboxTTS:
             else:
                 actual_device = self.device
             
-            print(f"🚀 [TTS] Loading Chatterbox model on {actual_device.upper()}...", file=sys.stderr)
+            from jarvis.debug import safe_print
+            safe_print(f"🚀 [TTS] Loading Chatterbox model on {actual_device.upper()}...", file=sys.stderr)
             
             # Load model with proper device specification
             self._model = ChatterboxModel.from_pretrained(device=actual_device)
             
-            print("✅ [TTS] Chatterbox neural voice synthesis ready!", file=sys.stderr)
+            safe_print("✅ [TTS] Chatterbox neural voice synthesis ready!", file=sys.stderr)
             self._system_tts.speak("Advanced voice synthesis ready")
             
         except ImportError as e:
