@@ -593,12 +593,12 @@ Want the shortest path to “no unexpected traffic”? Set these and avoid calli
 
 ```jsonc
 {
-  "web_search_enabled": false,      // disable DuckDuckGo queries
+  "web_search_enabled": true,      // disable DuckDuckGo queries
   "mcps": {},                       // no external tool integrations
-  "location_auto_detect": false,    // skip route probe / UPnP / DNS
+  "location_auto_detect": true,    // skip route probe / UPnP / DNS
   "location_cgnat_resolve_public_ip": false, // never perform CGNAT DNS query
   "location_ip_address": null,      // or set a static public IP if you still want location
-  "location_enabled": false         // (leave true + set location_ip_address for manual location)
+  "location_enabled": true         // (leave true + set location_ip_address for manual location)
 }
 ```
 

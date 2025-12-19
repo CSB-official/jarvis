@@ -141,7 +141,9 @@ def main() -> None:
         device=cfg.tts_chatterbox_device,
         audio_prompt_path=cfg.tts_chatterbox_audio_prompt,
         exaggeration=cfg.tts_chatterbox_exaggeration,
-        cfg_weight=cfg.tts_chatterbox_cfg_weight
+        cfg_weight=cfg.tts_chatterbox_cfg_weight,
+        temperature=cfg.tts_chatterbox_temperature,
+        repetition_penalty=cfg.tts_chatterbox_repetition_penalty
     )
     if tts.enabled:
         tts.start()

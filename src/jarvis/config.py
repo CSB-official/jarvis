@@ -43,7 +43,9 @@ class Settings:
     tts_chatterbox_device: str  # "cuda", "auto", or "cpu" for Chatterbox
     tts_chatterbox_audio_prompt: str | None  # Path to audio file for voice cloning with Chatterbox
     tts_chatterbox_exaggeration: float  # Emotion exaggeration control (0.0-1.0+)
-    tts_chatterbox_cfg_weight: float  # CFG weight for quality/speed trade-off
+    tts_chatterbox_cfg_weight: float  # CFG weight for quality/speed trade-off (0.0=fast, 0.5=balanced)
+    tts_chatterbox_temperature: float  # Sampling temperature (0.5=fast, 0.8=natural)
+    tts_chatterbox_repetition_penalty: float  # Repetition penalty (1.0=none, 1.2=default)
 
     # Voice Input & Audio
     voice_device: str | None
@@ -188,13 +190,15 @@ def get_default_config() -> Dict[str, Any]:
 
         # Text-to-Speech
         "tts_enabled": True,
-        "tts_engine": "system",  # "system" (default) or "chatterbox" (experimental)
+        "tts_engine": "system",  # "system" (default), "chatterbox" (experimental), or "edge" (cloud-based)
         "tts_voice": None,
         "tts_rate": 200,  # Words per minute (WPM), 200=normal
         "tts_chatterbox_device": "cuda",  # "cuda" (recommended), "auto", or "cpu"
         "tts_chatterbox_audio_prompt": None,  # Path to audio file for voice cloning
         "tts_chatterbox_exaggeration": 0.5,  # Emotion exaggeration (0.0-1.0+)
-        "tts_chatterbox_cfg_weight": 0.5,  # CFG weight for quality/speed trade-off
+        "tts_chatterbox_cfg_weight": 0.0,  # CFG weight (0.0=fast, 0.5=balanced quality)
+        "tts_chatterbox_temperature": 0.6,  # Sampling temperature (0.5=fast, 0.8=natural)
+        "tts_chatterbox_repetition_penalty": 1.2,  # Repetition penalty (1.0=none, 1.2=default)
 
         # Voice Input & Audio
         "voice_device": None,
@@ -309,7 +313,7 @@ def load_settings() -> Settings:
     active_profiles = _ensure_list(merged.get("active_profiles"))
     tts_enabled = bool(merged.get("tts_enabled", True))
     tts_engine = str(merged.get("tts_engine", "system")).lower()
-    if tts_engine not in ("system", "chatterbox"):
+    if tts_engine not in ("system", "chatterbox", "edge"):
         tts_engine = "system"  # Default to system if invalid value
     tts_voice_val = merged.get("tts_voice")
     tts_voice = None if tts_voice_val in (None, "", "null") else str(tts_voice_val)
@@ -324,7 +328,9 @@ def load_settings() -> Settings:
     tts_chatterbox_audio_prompt_val = merged.get("tts_chatterbox_audio_prompt")
     tts_chatterbox_audio_prompt = None if tts_chatterbox_audio_prompt_val in (None, "", "null") else str(tts_chatterbox_audio_prompt_val)
     tts_chatterbox_exaggeration = float(merged.get("tts_chatterbox_exaggeration", 0.5))
-    tts_chatterbox_cfg_weight = float(merged.get("tts_chatterbox_cfg_weight", 0.5))
+    tts_chatterbox_cfg_weight = float(merged.get("tts_chatterbox_cfg_weight", 0.0))
+    tts_chatterbox_temperature = float(merged.get("tts_chatterbox_temperature", 0.6))
+    tts_chatterbox_repetition_penalty = float(merged.get("tts_chatterbox_repetition_penalty", 1.2))
     voice_device_val = merged.get("voice_device")
     voice_device = None if voice_device_val in (None, "", "default", "system") else str(voice_device_val)
     voice_block_seconds = float(merged.get("voice_block_seconds", 4.0))
@@ -401,6 +407,8 @@ def load_settings() -> Settings:
         tts_chatterbox_audio_prompt=tts_chatterbox_audio_prompt,
         tts_chatterbox_exaggeration=tts_chatterbox_exaggeration,
         tts_chatterbox_cfg_weight=tts_chatterbox_cfg_weight,
+        tts_chatterbox_temperature=tts_chatterbox_temperature,
+        tts_chatterbox_repetition_penalty=tts_chatterbox_repetition_penalty,
 
         # Voice Input & Audio
         voice_device=voice_device,

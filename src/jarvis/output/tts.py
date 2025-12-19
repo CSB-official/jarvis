@@ -286,7 +286,9 @@ class ChatterboxTTS:
     
     def __init__(self, enabled: bool = True, voice: Optional[str] = None, rate: Optional[int] = None, 
                  device: str = "cuda", audio_prompt_path: Optional[str] = None, 
-                 exaggeration: float = 0.5, cfg_weight: float = 0.5) -> None:
+                 exaggeration: float = 0.5, cfg_weight: float = 0.0, 
+                 temperature: float = 0.6, repetition_penalty: float = 1.2,
+                 max_chars: int = 1500) -> None:
         self.enabled = enabled
         self.voice = voice  # Not used in Chatterbox, kept for interface compatibility
         self.rate = rate    # Not directly supported in Chatterbox, kept for interface compatibility
@@ -294,6 +296,9 @@ class ChatterboxTTS:
         self.audio_prompt_path = audio_prompt_path
         self.exaggeration = exaggeration
         self.cfg_weight = cfg_weight
+        self.temperature = temperature
+        self.repetition_penalty = repetition_penalty
+        self.max_chars = max_chars
         
         # Threading and queue setup (same as TextToSpeech)
         self._q: queue.Queue[str] = queue.Queue()
@@ -453,6 +458,11 @@ class ChatterboxTTS:
                 # Fall back to system TTS if Chatterbox fails
                 warnings.warn("Chatterbox TTS not available, skipping speech synthesis")
                 return
+            
+            # Check if text is too long
+            if len(text) > self.max_chars:
+                warnings.warn(f"Chatterbox TTS: Response too long ({len(text)} chars > {self.max_chars}), truncating")
+                text = text[:self.max_chars] + "..."
                 
             # Generate audio using Chatterbox
             import tempfile
@@ -464,7 +474,9 @@ class ChatterboxTTS:
                 text, 
                 audio_prompt_path=self.audio_prompt_path,
                 exaggeration=self.exaggeration,
-                cfg_weight=self.cfg_weight
+                cfg_weight=self.cfg_weight,
+                temperature=self.temperature,
+                repetition_penalty=self.repetition_penalty
             )
             
             # Save to temporary file
@@ -517,9 +529,164 @@ class ChatterboxTTS:
         return self._last_spoken_text
 
 
+class EdgeTTS:
+    """Microsoft Edge TTS - Cloud-based neural voices (free, natural, fast)."""
+    
+    def __init__(self, enabled: bool = True, voice: Optional[str] = None, rate: Optional[int] = None) -> None:
+        import sys
+        self.enabled = enabled
+        self.voice = voice or "en-US-AvaNeural"  # Default to Ava (natural, friendly)
+        self.rate = f"+{rate - 200}%" if rate and rate != 200 else "+0%"  # Convert WPM to percentage
+        
+        # Threading and queue setup
+        self._q: queue.Queue[str] = queue.Queue()
+        self._thread: Optional[threading.Thread] = None
+        self._stop = threading.Event()
+        self._is_speaking = threading.Event()
+        self._last_spoken_text: str = ""
+        self._completion_callback: Optional[Callable[[], None]] = None
+        self._should_interrupt = threading.Event()
+        
+        # Fallback to system TTS if Edge-TTS fails
+        self._fallback_tts = TextToSpeech(enabled=True, voice=None, rate=200)
+        
+        # Startup message
+        print(f"[TTS] Edge-TTS initialized with voice: {self.voice}", file=sys.stderr)
+        
+    def start(self) -> None:
+        if not self.enabled or self._thread is not None:
+            return
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        if self._thread is None:
+            return
+        try:
+            self.interrupt()
+        except Exception:
+            pass
+        self._stop.set()
+        try:
+            self._q.put_nowait("")
+        except Exception:
+            pass
+        self._thread.join(timeout=2.0)
+        self._thread = None
+        self._stop.clear()
+
+    def speak(self, text: str, completion_callback: Optional[Callable[[], None]] = None) -> None:
+        if not self.enabled or not text.strip():
+            return
+        if self._thread is None:
+            self.start()
+        self._completion_callback = completion_callback
+        try:
+            self._q.put_nowait(text)
+        except Exception:
+            pass
+
+    def interrupt(self) -> None:
+        """Stop current speech immediately"""
+        self._should_interrupt.set()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                text = self._q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if not text:
+                continue
+            try:
+                self._speak_once(text)
+            except Exception:
+                continue
+
+    def _speak_once(self, text: str) -> None:
+        self._is_speaking.set()
+        self._last_spoken_text = text
+        self._should_interrupt.clear()
+        interrupted = False
+        
+        try:
+            import asyncio
+            import edge_tts
+            import pygame
+            import sys
+            
+            from jarvis.debug import safe_print
+            safe_print(f"[Edge-TTS] Generating speech with voice: {self.voice}", file=sys.stderr)
+            
+            # Generate speech using Edge TTS
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+                
+            try:
+                # Run async Edge TTS in sync context
+                async def generate():
+                    communicate = edge_tts.Communicate(text, self.voice, rate=self.rate)
+                    await communicate.save(tmp_path)
+                
+                asyncio.run(generate())
+                safe_print(f"[Edge-TTS] Speech generated successfully", file=sys.stderr)
+                
+                # Play audio using pygame
+                pygame.mixer.init()
+                pygame.mixer.music.load(tmp_path)
+                pygame.mixer.music.play()
+                
+                # Wait for playback to complete or interruption
+                while pygame.mixer.music.get_busy():
+                    if self._should_interrupt.is_set():
+                        pygame.mixer.music.stop()
+                        interrupted = True
+                        break
+                    pygame.time.wait(100)
+                    
+            finally:
+                # Cleanup
+                pygame.mixer.quit()
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            import sys
+            from jarvis.debug import safe_print
+            safe_print(f"[Edge-TTS] ERROR: {e}", file=sys.stderr)
+            safe_print(f"[Edge-TTS] Falling back to system TTS", file=sys.stderr)
+            warnings.warn(f"Edge TTS error: {e}")
+            
+            # Fall back to system TTS
+            try:
+                self._fallback_tts.speak(text, self._completion_callback)
+                # Don't call completion_callback here since fallback TTS will call it
+                self._completion_callback = None
+            except Exception as fallback_error:
+                safe_print(f"[Fallback TTS] ERROR: {fallback_error}", file=sys.stderr)
+        finally:
+            self._is_speaking.clear()
+            if self._completion_callback is not None and not interrupted:
+                try:
+                    self._completion_callback()
+                except Exception:
+                    pass
+                self._completion_callback = None
+
+    def is_speaking(self) -> bool:
+        return self._is_speaking.is_set()
+
+    def get_last_spoken_text(self) -> str:
+        return self._last_spoken_text
+
+
 def create_tts_engine(engine: str = "system", enabled: bool = True, voice: Optional[str] = None, 
                       rate: Optional[int] = None, device: str = "cuda", audio_prompt_path: Optional[str] = None,
-                      exaggeration: float = 0.5, cfg_weight: float = 0.5):
+                      exaggeration: float = 0.5, cfg_weight: float = 0.0, 
+                      temperature: float = 0.6, repetition_penalty: float = 1.2,
+                      max_chars: int = 1500):
     """Factory function to create the appropriate TTS engine."""
     if engine.lower() == "chatterbox":
         return ChatterboxTTS(
@@ -529,8 +696,13 @@ def create_tts_engine(engine: str = "system", enabled: bool = True, voice: Optio
             device=device,
             audio_prompt_path=audio_prompt_path,
             exaggeration=exaggeration,
-            cfg_weight=cfg_weight
+            cfg_weight=cfg_weight,
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+            max_chars=max_chars
         )
+    elif engine.lower() == "edge":
+        return EdgeTTS(enabled=enabled, voice=voice, rate=rate)
     else:
         # Default to system TTS
         return TextToSpeech(enabled=enabled, voice=voice, rate=rate)

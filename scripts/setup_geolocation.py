@@ -8,6 +8,16 @@ location-based features in Jarvis.
 Since MaxMind requires registration for free access to GeoLite2 data (as of 2019),
 this script provides instructions and utilities to help with the setup process.
 """
+import sys
+# Fix Windows console encoding for emoji support
+if sys.platform == 'win32':
+    try:
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout.reconfigure(encoding='utf-8')
+        if sys.stderr.encoding != 'utf-8':
+            sys.stderr.reconfigure(encoding='utf-8')
+    except (AttributeError, Exception):
+        pass
 
 import os
 import sys
